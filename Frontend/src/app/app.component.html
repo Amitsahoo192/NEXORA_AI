@@ -1,4 +1,5 @@
 
+<!-- Initial loading -->
 <div *ngIf="authLoading" class="loading-screen">
   Loading Nexora...
 </div>
@@ -8,14 +9,10 @@
   <div class="auth-card">
     <div class="brand-mark">N</div>
 
-    <h1>
-      {{ isRegister ? 'Create your account' : 'Welcome back' }}
-    </h1>
+    <h1>{{ isRegister ? 'Create your account' : 'Welcome back' }}</h1>
 
     <p class="muted">
-      {{ isRegister
-        ? 'Join Nexora, your AI workbench'
-        : 'Log in to continue to Nexora' }}
+      {{ isRegister ? 'Join Nexora, your AI workbench' : 'Log in to continue to Nexora' }}
     </p>
 
     <form (ngSubmit)="submitAuth()" class="auth-form">
@@ -26,7 +23,8 @@
           [(ngModel)]="name"
           placeholder="Your name"
           autocomplete="name"
-        >
+          required
+        />
       </label>
 
       <label>
@@ -38,7 +36,7 @@
           placeholder="you@example.com"
           autocomplete="email"
           required
-        >
+        />
       </label>
 
       <label>
@@ -50,24 +48,19 @@
           placeholder="Your password"
           autocomplete="current-password"
           required
-        >
+        />
       </label>
 
       <p *ngIf="error" class="error">{{ error }}</p>
       <p *ngIf="notice" class="success">{{ notice }}</p>
 
-      <button class="primary full" [disabled]="busy">
-        {{
-          busy
-            ? 'Please wait…'
-            : (isRegister ? 'Create account' : 'Log in')
-        }}
+      <button class="primary full" type="submit" [disabled]="busy">
+        {{ busy ? 'Please wait…' : (isRegister ? 'Create account' : 'Log in') }}
       </button>
     </form>
 
     <p class="switch-auth">
       {{ isRegister ? 'Already have an account?' : 'New to Nexora?' }}
-
       <button
         type="button"
         class="link-button"
@@ -104,17 +97,13 @@
         [class.active]="chat._id === chatId"
         (click)="openChat(chat)"
       >
-        <span class="chat-title">
-          {{ chat.title || 'Untitled chat' }}
-        </span>
+        <span class="chat-title">{{ chat.title || 'Untitled chat' }}</span>
 
         <span
           class="delete-chat"
-          (click)="removeChat(chat, $event)"
           title="Delete chat"
-        >
-          ×
-        </span>
+          (click)="removeChat(chat, $event)"
+        >×</span>
       </button>
 
       <p *ngIf="!chats.length" class="empty-side">
@@ -126,23 +115,17 @@
       <button
         (click)="mode = 'resume'"
         [class.side-active]="mode === 'resume'"
-      >
-        ▤ Resume Analyzer
-      </button>
+      >▤ Resume Analyzer</button>
 
       <button
         (click)="mode = 'settings'"
         [class.side-active]="mode === 'settings'"
-      >
-        ⚙ Settings
-      </button>
+      >⚙ Settings</button>
 
       <button
         (click)="mode = 'help'"
         [class.side-active]="mode === 'help'"
-      >
-        ? Help
-      </button>
+      >? Help</button>
 
       <div class="profile-row">
         <div class="avatar">
@@ -154,24 +137,16 @@
           <small>{{ user.email || '' }}</small>
         </div>
 
-        <button
-          class="logout"
-          title="Log out"
-          (click)="logout()"
-        >
-          ↗
-        </button>
+        <button class="logout" title="Log out" (click)="logout()">↗</button>
       </div>
     </div>
   </aside>
 
   <!-- Main content -->
   <main class="main-area">
-
     <header class="topbar">
       <div>
         <span class="eyebrow">YOUR AI WORKSPACE</span>
-
         <h2>
           {{
             mode === 'chat'
@@ -194,17 +169,16 @@
     <!-- Notifications -->
     <div *ngIf="error" class="alert error-alert">
       <span>{{ error }}</span>
-      <button (click)="error = ''">×</button>
+      <button type="button" (click)="error = ''">×</button>
     </div>
 
     <div *ngIf="notice" class="alert notice-alert">
       <span>{{ notice }}</span>
-      <button (click)="notice = ''">×</button>
+      <button type="button" (click)="notice = ''">×</button>
     </div>
 
     <!-- Chat -->
     <section *ngIf="mode === 'chat'" class="chat-view">
-
       <div
         class="messages-area"
         [class.centered]="messages.length === 0"
@@ -213,14 +187,9 @@
         <!-- Welcome screen -->
         <div *ngIf="messages.length === 0" class="welcome">
           <div class="welcome-icon">N</div>
+          <div class="eyebrow">THINK · CREATE · DISCOVER</div>
 
-          <div class="eyebrow">
-            THINK · CREATE · DISCOVER
-          </div>
-
-          <h1>
-            Your ideas, <span>in motion.</span>
-          </h1>
+          <h1>Your ideas, <span>in motion.</span></h1>
 
           <p>
             Your AI workbench for conversations, coding, web search
@@ -246,7 +215,7 @@
           </div>
         </div>
 
-        <!-- Conversation messages -->
+        <!-- Messages -->
         <article
           *ngFor="let message of messages"
           class="message-row"
@@ -268,39 +237,109 @@
               {{ message.sender === 'user' ? 'You' : 'Nexora' }}
             </div>
 
-            <!-- Render assistant responses as formatted Markdown -->
+            <!-- Assistant Markdown -->
             <div
               *ngIf="message.sender === 'assistant'; else plainUserMessage"
               class="ai-message-content"
               [innerHTML]="formatMessage(message.text)"
             ></div>
 
-            <!-- Keep user messages as plain text -->
+            <!-- User text -->
             <ng-template #plainUserMessage>
-              <div class="user-message-content">
-                {{ message.text }}
-              </div>
+              <div class="user-message-content">{{ message.text }}</div>
             </ng-template>
+
+            <!-- Assistant action icons -->
+            <div
+              *ngIf="message.sender === 'assistant'"
+              class="message-actions"
+            >
+              <!-- Copy -->
+              <button
+                type="button"
+                class="message-action-button"
+                (click)="copyMessage(message.text)"
+                title="Copy response"
+                aria-label="Copy response"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="8" y="8" width="12" height="12" rx="2"></rect>
+                  <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"></path>
+                </svg>
+              </button>
+
+              <!-- Listen / Stop -->
+              <button
+                type="button"
+                class="message-action-button"
+                [class.active]="isSpeaking"
+                (click)="isSpeaking ? stopSpeaking() : speakMessage(message.text)"
+                [title]="isSpeaking ? 'Stop speaking' : 'Listen'"
+                [attr.aria-label]="isSpeaking ? 'Stop speaking' : 'Listen'"
+              >
+                <svg *ngIf="!isSpeaking" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M11 5 6 9H3v6h3l5 4V5Z"></path>
+                  <path d="M15 9a5 5 0 0 1 0 6"></path>
+                  <path d="M18 6a9 9 0 0 1 0 12"></path>
+                </svg>
+
+                <svg *ngIf="isSpeaking" viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+                </svg>
+              </button>
+
+              <!-- Thumbs up -->
+              <button
+                type="button"
+                class="message-action-button"
+                [class.active]="message.rating === 'up'"
+                (click)="rateResponse(message, 'up')"
+                title="Good response"
+                aria-label="Good response"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 10v11H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3Z"></path>
+                  <path d="M7 10 12 3a3 3 0 0 1 2 3v4h4a3 3 0 0 1 3 3l-2 6a3 3 0 0 1-3 2H7"></path>
+                </svg>
+              </button>
+
+              <!-- Thumbs down -->
+              <button
+                type="button"
+                class="message-action-button"
+                [class.active]="message.rating === 'down'"
+                (click)="rateResponse(message, 'down')"
+                title="Poor response"
+                aria-label="Poor response"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 14V3H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3Z"></path>
+                  <path d="m7 14 5 7a3 3 0 0 0 2-3v-4h4a3 3 0 0 0 3-3l-2-6a3 3 0 0 0-3-2H7"></path>
+                </svg>
+              </button>
+            </div>
           </div>
         </article>
 
-        <!-- AI thinking indicator -->
-        <div *ngIf="busy" class="thinking">
+        <!-- Thinking indicator -->
+        <div *ngIf="chatBusy" class="thinking">
           <span></span>
           <span></span>
           <span></span>
           <small>Nexora is thinking</small>
         </div>
-
       </div>
 
-      <!-- Message composer -->
+      <!-- Composer -->
       <div class="composer-wrap">
-
         <div *ngIf="selectedDocument" class="attachment-chip">
           ▤ {{ selectedDocument.fileName || 'Document attached' }}
-
-          <button (click)="selectedDocument = null">×</button>
+          <button
+            type="button"
+            (click)="selectedDocument = null"
+            aria-label="Remove attached document"
+            title="Remove document"
+          >×</button>
         </div>
 
         <div class="composer">
@@ -310,32 +349,59 @@
             type="file"
             accept="application/pdf,.pdf"
             (change)="uploadDocument($event)"
-          >
+          />
 
           <button
+            type="button"
             class="icon-button"
             (click)="chooseDocument()"
-            [disabled]="uploadBusy"
+            [disabled]="uploadBusy || chatBusy"
             title="Upload a PDF"
+            aria-label="Upload a PDF"
           >
             {{ uploadBusy ? '…' : '＋' }}
+          </button>
+
+          <button
+            type="button"
+            class="icon-button voice-button"
+            [class.listening]="isListening"
+            [disabled]="!voiceSupported || chatBusy"
+            (click)="toggleVoiceInput()"
+            [title]="
+              !voiceSupported
+                ? 'Voice input is not supported in this browser'
+                : isListening
+                  ? 'Stop listening'
+                  : 'Speak your message'
+            "
+            aria-label="Voice input"
+          >
+            {{ isListening ? '■' : '🎙' }}
           </button>
 
           <textarea
             [(ngModel)]="input"
             (keydown)="onComposerKey($event)"
-            [disabled]="busy"
+            [disabled]="chatBusy"
             placeholder="Message Nexora… (Enter to send, Shift+Enter for new line)"
             rows="1"
           ></textarea>
 
           <button
+            type="button"
             class="send-button"
             (click)="send()"
-            [disabled]="busy || !input.trim()"
+            [disabled]="chatBusy || !input.trim()"
+            title="Send message"
+            aria-label="Send message"
           >
-            {{ busy ? '…' : '↑' }}
+            {{ chatBusy ? '…' : '↑' }}
           </button>
+        </div>
+
+        <div *ngIf="isListening" class="voice-status">
+          Listening… Speak now.
         </div>
 
         <div class="composer-foot">
@@ -347,9 +413,7 @@
             }}
           </span>
 
-          <span *ngIf="uploadBusy">
-            Indexing document…
-          </span>
+          <span *ngIf="uploadBusy">Indexing document…</span>
         </div>
       </div>
     </section>
@@ -359,9 +423,7 @@
       <div class="tool-heading">
         <div class="tool-icon">▤</div>
         <h1>Resume Analyzer</h1>
-        <p>
-          Get actionable feedback on your resume with your AI assistant.
-        </p>
+        <p>Get actionable feedback on your resume with your AI assistant.</p>
       </div>
 
       <div class="tool-card">
@@ -376,11 +438,7 @@
           </strong>
 
           <small>
-            {{
-              resumeFile
-                ? 'Ready to analyze'
-                : 'Click to browse your computer'
-            }}
+            {{ resumeFile ? 'Ready to analyze' : 'Click to browse your computer' }}
           </small>
 
           <input
@@ -389,7 +447,7 @@
             accept="application/pdf,.pdf"
             (change)="onResumeSelected($event)"
             hidden
-          >
+          />
         </label>
 
         <button
@@ -430,18 +488,16 @@
         <h3>Account</h3>
 
         <p>
-          <span class="muted">Name</span><br>
+          <span class="muted">Name</span><br />
           {{ user.name || 'Not provided' }}
         </p>
 
         <p>
-          <span class="muted">Email</span><br>
+          <span class="muted">Email</span><br />
           {{ user.email || 'Not provided' }}
         </p>
 
-        <button class="secondary" (click)="logout()">
-          Log out
-        </button>
+        <button class="secondary" (click)="logout()">Log out</button>
       </div>
     </section>
 
@@ -455,31 +511,36 @@
 
       <div class="tool-card">
         <h3>Chat with your documents</h3>
-
         <p>
           Use the plus button in the chat composer to upload a PDF.
           Wait for indexing to finish, then ask questions about the document.
         </p>
 
         <h3>Start a conversation</h3>
-
         <p>
-          Type your question in the composer. Press Enter to send
-          or Shift+Enter to add a new line.
+          Press Enter to send a message or Shift+Enter to add a new line.
         </p>
 
-        <h3>Resume Analyzer</h3>
-
+        <h3>Voice features</h3>
         <p>
-          Open Resume Analyzer from the sidebar and upload a PDF
-          resume to receive AI feedback.
+          Click the microphone to speak your question. Use the speaker icon
+          under an AI response to hear it aloud.
+        </p>
+
+        <h3>Response feedback</h3>
+        <p>Use the thumbs-up or thumbs-down icon to rate an AI response.</p>
+
+        <h3>Resume Analyzer</h3>
+        <p>
+          Upload a PDF resume to receive feedback and discuss the
+          recommendations with Nexora.
         </p>
       </div>
     </section>
 
+    <!-- Footer -->
     <footer class="main-footer">
       Built for focused work <span>·</span> Nexora AI Workbench
     </footer>
-
   </main>
 </div>

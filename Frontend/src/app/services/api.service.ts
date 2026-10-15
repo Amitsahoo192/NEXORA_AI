@@ -1,7 +1,7 @@
 
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 
 export const API_BASE = 'https://nexora-aqr7.onrender.com';
 
@@ -48,10 +48,7 @@ export class ApiService {
     const data: any = await firstValueFrom(
       this.http.post(
         `${API_BASE}/api/auth/login`,
-        {
-          email,
-          password
-        }
+        { email, password }
       )
     );
 
@@ -71,11 +68,7 @@ export class ApiService {
     return firstValueFrom(
       this.http.post(
         `${API_BASE}/api/auth/register`,
-        {
-          name,
-          email,
-          password
-        }
+        { name, email, password }
       )
     );
   }
@@ -85,9 +78,7 @@ export class ApiService {
     return firstValueFrom(
       this.http.get(
         `${API_BASE}/api/auth/me`,
-        {
-          headers: this.headers()
-        }
+        { headers: this.headers() }
       )
     );
   }
@@ -97,9 +88,7 @@ export class ApiService {
     return firstValueFrom(
       this.http.get<ChatItem[]>(
         `${API_BASE}/api/chats`,
-        {
-          headers: this.headers()
-        }
+        { headers: this.headers() }
       )
     );
   }
@@ -121,6 +110,8 @@ export class ApiService {
         {
           headers: this.headers()
         }
+      ).pipe(
+        timeout({ first: 120000 })
       )
     );
   }
@@ -130,9 +121,7 @@ export class ApiService {
     return firstValueFrom(
       this.http.delete(
         `${API_BASE}/api/chats/${id}`,
-        {
-          headers: this.headers()
-        }
+        { headers: this.headers() }
       )
     );
   }
@@ -140,16 +129,13 @@ export class ApiService {
   // Upload a PDF document for RAG
   async upload(file: File): Promise<any> {
     const form = new FormData();
-
     form.append('document', file);
 
     return firstValueFrom(
       this.http.post(
         `${API_BASE}/upload-document`,
         form,
-        {
-          headers: this.headers()
-        }
+        { headers: this.headers() }
       )
     );
   }
@@ -157,16 +143,13 @@ export class ApiService {
   // Analyze a resume
   async analyzeResume(file: File): Promise<any> {
     const form = new FormData();
-
     form.append('resume', file);
 
     return firstValueFrom(
       this.http.post(
         `${API_BASE}/api/resume/analyze`,
         form,
-        {
-          headers: this.headers()
-        }
+        { headers: this.headers() }
       )
     );
   }

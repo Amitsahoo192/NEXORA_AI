@@ -2,31 +2,36 @@
 import {
   Component,
   OnInit,
+  OnDestroy,
   ViewChild,
   ElementRef
 } from '@angular/core';
+
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+
 import {
   ApiService,
   ChatItem,
   ChatMessage
 } from './services/api.service';
+
+type ResponseRating = 'up' | 'down';
+
+type RatedChatMessage = ChatMessage & {
+  rating?: ResponseRating;
+};
+
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    RouterModule
-  ],
+  imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './app.component.html'
 })
-export class AppComponent implements OnInit {
-
+export class AppComponent implements OnInit, OnDestroy {
   @ViewChild('fileInput')
   fileInput?: ElementRef<HTMLInputElement>;
 
@@ -37,9 +42,17 @@ export class AppComponent implements OnInit {
 
   authLoading = true;
   isRegister = false;
+
   busy = false;
+  chatBusy = false;
   uploadBusy = false;
   resumeBusy = false;
+
+  // Voice input and output
+  recognition: any = null;
+  voiceSupported = false;
+  isListening = false;
+  isSpeaking = false;
 
   email = '';
   password = '';
@@ -50,7 +63,7 @@ export class AppComponent implements OnInit {
 
   mode: 'chat' | 'resume' | 'settings' | 'help' = 'chat';
 
-  messages: ChatMessage[] = [];
+  messages: RatedChatMessage[] = [];
   chats: ChatItem[] = [];
 
   chatId: string | null = null;
@@ -60,33 +73,235 @@ export class AppComponent implements OnInit {
 
   constructor(private api: ApiService) {}
 
-  async ngOnInit(): Promise<void> {
-    if (this.api.token()) {
-      try {
-        const data = await this.api.me();
+  // ---------------- INITIALIZATION ----------------
 
-        this.user = data.user || data;
-        await this.loadChats();
+  async ngOnInit(): Promise<void> {
+    this.initializeVoice();
+
+    try {
+      if (this.api.token()) {
+        try {
+          const data = await this.api.me();
+
+          this.user = data.user || data;
+          await this.loadChats();
+        } catch (e) {
+          console.warn('Could not restore session:', e);
+
+          this.api.logout();
+          this.user = null;
+        }
+      }
+
+      const prompt = localStorage.getItem('nexora_resume_prompt');
+
+      if (prompt) {
+        this.input = prompt;
+        localStorage.removeItem('nexora_resume_prompt');
+      }
+    } finally {
+      this.authLoading = false;
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.stopVoiceInput();
+    this.stopSpeaking();
+  }
+
+  // ---------------- VOICE INPUT ----------------
+
+  initializeVoice(): void {
+    const browserWindow = window as any;
+
+    const SpeechRecognition =
+      browserWindow.SpeechRecognition ||
+      browserWindow.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      this.voiceSupported = false;
+      return;
+    }
+
+    this.voiceSupported = true;
+    this.recognition = new SpeechRecognition();
+
+    this.recognition.lang = 'en-IN';
+    this.recognition.continuous = false;
+    this.recognition.interimResults = false;
+
+    this.recognition.onstart = () => {
+      this.isListening = true;
+      this.error = '';
+    };
+
+    this.recognition.onresult = (event: any) => {
+      const transcript =
+        event.results[0][0].transcript.trim();
+
+      this.input = this.input
+        ? `${this.input} ${transcript}`
+        : transcript;
+    };
+
+    this.recognition.onerror = (event: any) => {
+      this.isListening = false;
+
+      if (event.error === 'not-allowed') {
+        this.error =
+          'Microphone permission denied. Allow microphone access in your browser.';
+      } else if (
+        event.error !== 'no-speech' &&
+        event.error !== 'aborted'
+      ) {
+        this.error = 'Voice input failed. Please try again.';
+      }
+    };
+
+    this.recognition.onend = () => {
+      this.isListening = false;
+    };
+  }
+
+  toggleVoiceInput(): void {
+    if (!this.voiceSupported || this.chatBusy) {
+      return;
+    }
+
+    if (this.isListening) {
+      this.stopVoiceInput();
+      return;
+    }
+
+    this.stopSpeaking();
+
+    try {
+      this.recognition.start();
+    } catch (e) {
+      console.warn('Could not start voice input:', e);
+    }
+  }
+
+  stopVoiceInput(): void {
+    if (this.recognition && this.isListening) {
+      try {
+        this.recognition.stop();
       } catch {
-        this.api.logout();
+        // Recognition may already have stopped.
       }
     }
 
-    this.authLoading = false;
+    this.isListening = false;
+  }
 
-    const prompt = localStorage.getItem('nexora_resume_prompt');
+  // ---------------- VOICE OUTPUT ----------------
 
-    if (prompt) {
-      this.input = prompt;
-      localStorage.removeItem('nexora_resume_prompt');
+  speakMessage(text: string): void {
+    if (!('speechSynthesis' in window)) {
+      this.error =
+        'Voice output is not supported in this browser.';
+      return;
+    }
+
+    this.stopSpeaking();
+
+    // Make Markdown readable when spoken aloud.
+    const plainText = text
+      .replace(/```[\s\S]*?```/g, 'Code block omitted.')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/[#*_~>]/g, '')
+      .trim();
+
+    if (!plainText) {
+      return;
+    }
+
+    const speech = new SpeechSynthesisUtterance(plainText);
+
+    speech.lang = 'en-IN';
+    speech.rate = 1;
+    speech.pitch = 1;
+
+    speech.onstart = () => {
+      this.isSpeaking = true;
+    };
+
+    speech.onend = () => {
+      this.isSpeaking = false;
+    };
+
+    speech.onerror = () => {
+      this.isSpeaking = false;
+    };
+
+    window.speechSynthesis.speak(speech);
+  }
+
+  stopSpeaking(): void {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    this.isSpeaking = false;
+  }
+
+  // ---------------- MARKDOWN ----------------
+
+  formatMessage(text: string): string {
+    const markdown = marked.parse(text || '') as string;
+
+    return DOMPurify.sanitize(markdown);
+  }
+
+  // ---------------- RESPONSE ACTIONS ----------------
+
+  async copyMessage(text: string): Promise<void> {
+    this.error = '';
+    this.notice = '';
+
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Fallback for browsers without Clipboard API access.
+        const textarea = document.createElement('textarea');
+
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        textarea.setAttribute('readonly', '');
+
+        document.body.appendChild(textarea);
+        textarea.select();
+
+        const copied = document.execCommand('copy');
+
+        document.body.removeChild(textarea);
+
+        if (!copied) {
+          throw new Error('Copy command failed.');
+        }
+      }
+
+      this.notice = 'Response copied to clipboard.';
+    } catch (e) {
+      console.warn('Could not copy response:', e);
+      this.error = 'Unable to copy the response. Please try again.';
     }
   }
 
-  // Render AI messages as safe, formatted Markdown.
-  formatMessage(text: string): string {
-    const markdown = marked.parse(text || '') as string;
-    return DOMPurify.sanitize(markdown);
+  rateResponse(
+    message: RatedChatMessage,
+    rating: ResponseRating
+  ): void {
+    // Clicking the selected rating again removes it.
+    message.rating =
+      message.rating === rating ? undefined : rating;
   }
+
+  // ---------------- AUTHENTICATION ----------------
 
   async submitAuth(): Promise<void> {
     this.error = '';
@@ -101,7 +316,9 @@ export class AppComponent implements OnInit {
       this.error = 'Please enter your name.';
       return;
     }
+
     this.busy = true;
+
     try {
       if (this.isRegister) {
         await this.api.register(
@@ -109,6 +326,7 @@ export class AppComponent implements OnInit {
           this.email.trim(),
           this.password
         );
+
         this.notice = 'Account created. Please log in.';
         this.isRegister = false;
         this.password = '';
@@ -117,6 +335,7 @@ export class AppComponent implements OnInit {
           this.email.trim(),
           this.password
         );
+
         this.user = data.user || {
           email: this.email,
           name: this.email.split('@')[0]
@@ -132,26 +351,41 @@ export class AppComponent implements OnInit {
     } finally {
       this.busy = false;
     }
-  }  async loadChats(): Promise<void> {
+  }
+
+  // ---------------- CHAT HISTORY ----------------
+
+  async loadChats(): Promise<void> {
     try {
       this.chats = await this.api.chats();
     } catch (e) {
-      console.warn('Could not load chats', e);
+      console.warn('Could not load chats:', e);
     }
   }
+
   newChat(): void {
+    this.stopVoiceInput();
+    this.stopSpeaking();
+
     this.chatId = null;
     this.messages = [];
     this.selectedDocument = null;
     this.input = '';
     this.mode = 'chat';
     this.error = '';
+    this.notice = '';
   }
+
   openChat(chat: ChatItem): void {
+    this.stopVoiceInput();
+    this.stopSpeaking();
+
     this.chatId = chat._id;
-    this.messages = [...(chat.messages || [])];
+    this.messages = [...(chat.messages || [])] as RatedChatMessage[];
     this.mode = 'chat';
     this.selectedDocument = null;
+    this.error = '';
+    this.notice = '';
   }
 
   async removeChat(
@@ -174,32 +408,34 @@ export class AppComponent implements OnInit {
       await this.loadChats();
     } catch (e: any) {
       this.error =
-        e?.error?.message ||
-        'Could not delete chat.';
+        e?.error?.message || 'Could not delete chat.';
     }
   }
+
+  // ---------------- SEND MESSAGE ----------------
 
   async send(): Promise<void> {
     const text = this.input.trim();
 
-    if (!text || this.busy) {
+    if (!text || this.chatBusy) {
       return;
     }
 
+    this.stopVoiceInput();
+    this.stopSpeaking();
+
     const prior = [...this.messages];
 
-    const next: ChatMessage[] = [
+    const next: RatedChatMessage[] = [
       ...prior,
-      {
-        sender: 'user',
-        text
-      }
+      { sender: 'user', text }
     ];
 
     this.messages = next;
     this.input = '';
-    this.busy = true;
+    this.chatBusy = true;
     this.error = '';
+    this.notice = '';
 
     try {
       const result = await this.api.send(
@@ -218,16 +454,19 @@ export class AppComponent implements OnInit {
 
       this.chatId = result.chatId || this.chatId;
 
-      await this.loadChats();
+      // Refresh chat history without blocking the UI.
+      void this.loadChats();
     } catch (e: any) {
       this.messages = prior;
       this.input = text;
 
       this.error =
         e?.error?.message ||
+        e?.message ||
         'Could not generate a response. Check the backend and API keys.';
     } finally {
-      this.busy = false;
+      // Always stop the thinking indicator after success or failure.
+      this.chatBusy = false;
     }
   }
 
@@ -237,6 +476,8 @@ export class AppComponent implements OnInit {
       void this.send();
     }
   }
+
+  // ---------------- DOCUMENT UPLOAD ----------------
 
   chooseDocument(): void {
     this.fileInput?.nativeElement.click();
@@ -250,6 +491,9 @@ export class AppComponent implements OnInit {
       return;
     }
 
+    this.error = '';
+    this.notice = '';
+
     if (file.type !== 'application/pdf') {
       this.error = 'Please choose a PDF document.';
       input.value = '';
@@ -257,7 +501,6 @@ export class AppComponent implements OnInit {
     }
 
     this.uploadBusy = true;
-    this.error = '';
 
     try {
       this.selectedDocument = await this.api.upload(file);
@@ -267,19 +510,22 @@ export class AppComponent implements OnInit {
         `(${this.selectedDocument.chunks ?? 0} chunks).`;
     } catch (e: any) {
       this.error =
-        e?.error?.message ||
-        'Document upload failed.';
+        e?.error?.message || 'Document upload failed.';
     } finally {
       this.uploadBusy = false;
       input.value = '';
     }
   }
 
-  onResumeSelected(event: Event): void {
-    this.resumeFile =
-      (event.target as HTMLInputElement).files?.[0] || null;
+  // ---------------- RESUME ANALYZER ----------------
 
+  onResumeSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+
+    this.resumeFile = input.files?.[0] || null;
     this.resumeResult = null;
+    this.error = '';
+    this.notice = '';
   }
 
   async analyzeResume(): Promise<void> {
@@ -288,8 +534,14 @@ export class AppComponent implements OnInit {
       return;
     }
 
+    if (this.resumeFile.type !== 'application/pdf') {
+      this.error = 'Please choose a PDF resume.';
+      return;
+    }
+
     this.resumeBusy = true;
     this.error = '';
+    this.notice = '';
     this.resumeResult = null;
 
     try {
@@ -297,8 +549,7 @@ export class AppComponent implements OnInit {
       this.resumeResult = result.analysis;
     } catch (e: any) {
       this.error =
-        e?.error?.message ||
-        'Resume analysis failed.';
+        e?.error?.message || 'Resume analysis failed.';
     } finally {
       this.resumeBusy = false;
     }
@@ -311,13 +562,22 @@ export class AppComponent implements OnInit {
     this.mode = 'chat';
   }
 
+  // ---------------- LOGOUT ----------------
+
   logout(): void {
+    this.stopVoiceInput();
+    this.stopSpeaking();
+
     this.api.logout();
+
     this.user = null;
     this.messages = [];
     this.chats = [];
+
     this.newChat();
   }
+
+  // ---------------- UTILITIES ----------------
 
   displayResult(value: any): string {
     return typeof value === 'string'
