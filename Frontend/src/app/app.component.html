@@ -1,0 +1,485 @@
+
+<div *ngIf="authLoading" class="loading-screen">
+  Loading Nexora...
+</div>
+
+<!-- Authentication -->
+<section *ngIf="!authLoading && !user" class="auth-screen">
+  <div class="auth-card">
+    <div class="brand-mark">N</div>
+
+    <h1>
+      {{ isRegister ? 'Create your account' : 'Welcome back' }}
+    </h1>
+
+    <p class="muted">
+      {{ isRegister
+        ? 'Join Nexora, your AI workbench'
+        : 'Log in to continue to Nexora' }}
+    </p>
+
+    <form (ngSubmit)="submitAuth()" class="auth-form">
+      <label *ngIf="isRegister">
+        Name
+        <input
+          name="name"
+          [(ngModel)]="name"
+          placeholder="Your name"
+          autocomplete="name"
+        >
+      </label>
+
+      <label>
+        Email
+        <input
+          name="email"
+          type="email"
+          [(ngModel)]="email"
+          placeholder="you@example.com"
+          autocomplete="email"
+          required
+        >
+      </label>
+
+      <label>
+        Password
+        <input
+          name="password"
+          type="password"
+          [(ngModel)]="password"
+          placeholder="Your password"
+          autocomplete="current-password"
+          required
+        >
+      </label>
+
+      <p *ngIf="error" class="error">{{ error }}</p>
+      <p *ngIf="notice" class="success">{{ notice }}</p>
+
+      <button class="primary full" [disabled]="busy">
+        {{
+          busy
+            ? 'Please wait…'
+            : (isRegister ? 'Create account' : 'Log in')
+        }}
+      </button>
+    </form>
+
+    <p class="switch-auth">
+      {{ isRegister ? 'Already have an account?' : 'New to Nexora?' }}
+
+      <button
+        type="button"
+        class="link-button"
+        (click)="isRegister = !isRegister; error = ''; notice = ''"
+      >
+        {{ isRegister ? 'Log in' : 'Create account' }}
+      </button>
+    </p>
+  </div>
+</section>
+
+<!-- Main application -->
+<div *ngIf="!authLoading && user" class="shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand-row">
+      <div class="brand-mark small">N</div>
+      <span>Nexora</span>
+      <span class="brand-pill">AI</span>
+    </div>
+
+    <button class="new-chat" (click)="newChat()">
+      <span>＋</span>
+      New chat
+    </button>
+
+    <div class="side-label">RECENT</div>
+
+    <div class="chat-list">
+      <button
+        *ngFor="let chat of chats"
+        class="chat-item"
+        [class.active]="chat._id === chatId"
+        (click)="openChat(chat)"
+      >
+        <span class="chat-title">
+          {{ chat.title || 'Untitled chat' }}
+        </span>
+
+        <span
+          class="delete-chat"
+          (click)="removeChat(chat, $event)"
+          title="Delete chat"
+        >
+          ×
+        </span>
+      </button>
+
+      <p *ngIf="!chats.length" class="empty-side">
+        Your conversations will appear here.
+      </p>
+    </div>
+
+    <div class="sidebar-bottom">
+      <button
+        (click)="mode = 'resume'"
+        [class.side-active]="mode === 'resume'"
+      >
+        ▤ Resume Analyzer
+      </button>
+
+      <button
+        (click)="mode = 'settings'"
+        [class.side-active]="mode === 'settings'"
+      >
+        ⚙ Settings
+      </button>
+
+      <button
+        (click)="mode = 'help'"
+        [class.side-active]="mode === 'help'"
+      >
+        ? Help
+      </button>
+
+      <div class="profile-row">
+        <div class="avatar">
+          {{ (user.name || user.email || 'U').charAt(0).toUpperCase() }}
+        </div>
+
+        <div class="profile-info">
+          <strong>{{ user.name || 'Nexora User' }}</strong>
+          <small>{{ user.email || '' }}</small>
+        </div>
+
+        <button
+          class="logout"
+          title="Log out"
+          (click)="logout()"
+        >
+          ↗
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main-area">
+
+    <header class="topbar">
+      <div>
+        <span class="eyebrow">YOUR AI WORKSPACE</span>
+
+        <h2>
+          {{
+            mode === 'chat'
+              ? 'AI Workbench'
+              : mode === 'resume'
+                ? 'Resume Analyzer'
+                : mode === 'settings'
+                  ? 'Settings'
+                  : 'Help Center'
+          }}
+        </h2>
+      </div>
+
+      <div class="top-actions">
+        <span class="status-dot"></span>
+        <span>Systems ready</span>
+      </div>
+    </header>
+
+    <!-- Notifications -->
+    <div *ngIf="error" class="alert error-alert">
+      <span>{{ error }}</span>
+      <button (click)="error = ''">×</button>
+    </div>
+
+    <div *ngIf="notice" class="alert notice-alert">
+      <span>{{ notice }}</span>
+      <button (click)="notice = ''">×</button>
+    </div>
+
+    <!-- Chat -->
+    <section *ngIf="mode === 'chat'" class="chat-view">
+
+      <div
+        class="messages-area"
+        [class.centered]="messages.length === 0"
+      >
+
+        <!-- Welcome screen -->
+        <div *ngIf="messages.length === 0" class="welcome">
+          <div class="welcome-icon">N</div>
+
+          <div class="eyebrow">
+            THINK · CREATE · DISCOVER
+          </div>
+
+          <h1>
+            Your ideas, <span>in motion.</span>
+          </h1>
+
+          <p>
+            Your AI workbench for conversations, coding, web search
+            and asking questions about your documents.
+          </p>
+
+          <div class="suggestions">
+            <button
+              (click)="input = 'Explain a complex concept in simple terms'"
+            >
+              Explain a concept <span>↗</span>
+            </button>
+
+            <button (click)="input = 'Help me debug my code'">
+              Debug my code <span>↗</span>
+            </button>
+
+            <button
+              (click)="input = 'Summarize the document I uploaded'"
+            >
+              Ask about a document <span>↗</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Conversation messages -->
+        <article
+          *ngFor="let message of messages"
+          class="message-row"
+          [class.user-message]="message.sender === 'user'"
+        >
+          <div
+            class="message-avatar"
+            [class.user-avatar]="message.sender === 'user'"
+          >
+            {{
+              message.sender === 'user'
+                ? (user.name || 'U').charAt(0).toUpperCase()
+                : 'N'
+            }}
+          </div>
+
+          <div class="message-body">
+            <div class="message-role">
+              {{ message.sender === 'user' ? 'You' : 'Nexora' }}
+            </div>
+
+            <!-- Render assistant responses as formatted Markdown -->
+            <div
+              *ngIf="message.sender === 'assistant'; else plainUserMessage"
+              class="ai-message-content"
+              [innerHTML]="formatMessage(message.text)"
+            ></div>
+
+            <!-- Keep user messages as plain text -->
+            <ng-template #plainUserMessage>
+              <div class="user-message-content">
+                {{ message.text }}
+              </div>
+            </ng-template>
+          </div>
+        </article>
+
+        <!-- AI thinking indicator -->
+        <div *ngIf="busy" class="thinking">
+          <span></span>
+          <span></span>
+          <span></span>
+          <small>Nexora is thinking</small>
+        </div>
+
+      </div>
+
+      <!-- Message composer -->
+      <div class="composer-wrap">
+
+        <div *ngIf="selectedDocument" class="attachment-chip">
+          ▤ {{ selectedDocument.fileName || 'Document attached' }}
+
+          <button (click)="selectedDocument = null">×</button>
+        </div>
+
+        <div class="composer">
+          <input
+            #fileInput
+            hidden
+            type="file"
+            accept="application/pdf,.pdf"
+            (change)="uploadDocument($event)"
+          >
+
+          <button
+            class="icon-button"
+            (click)="chooseDocument()"
+            [disabled]="uploadBusy"
+            title="Upload a PDF"
+          >
+            {{ uploadBusy ? '…' : '＋' }}
+          </button>
+
+          <textarea
+            [(ngModel)]="input"
+            (keydown)="onComposerKey($event)"
+            [disabled]="busy"
+            placeholder="Message Nexora… (Enter to send, Shift+Enter for new line)"
+            rows="1"
+          ></textarea>
+
+          <button
+            class="send-button"
+            (click)="send()"
+            [disabled]="busy || !input.trim()"
+          >
+            {{ busy ? '…' : '↑' }}
+          </button>
+        </div>
+
+        <div class="composer-foot">
+          <span>
+            {{
+              selectedDocument
+                ? 'Questions will use your uploaded document'
+                : 'Nexora can make mistakes. Verify important information.'
+            }}
+          </span>
+
+          <span *ngIf="uploadBusy">
+            Indexing document…
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Resume Analyzer -->
+    <section *ngIf="mode === 'resume'" class="tool-view">
+      <div class="tool-heading">
+        <div class="tool-icon">▤</div>
+        <h1>Resume Analyzer</h1>
+        <p>
+          Get actionable feedback on your resume with your AI assistant.
+        </p>
+      </div>
+
+      <div class="tool-card">
+        <h3>Upload your resume</h3>
+        <p class="muted">PDF format · Maximum 5 MB</p>
+
+        <label class="drop-zone">
+          <span class="upload-symbol">↑</span>
+
+          <strong>
+            {{ resumeFile ? resumeFile.name : 'Choose a PDF file' }}
+          </strong>
+
+          <small>
+            {{
+              resumeFile
+                ? 'Ready to analyze'
+                : 'Click to browse your computer'
+            }}
+          </small>
+
+          <input
+            #resumeInput
+            type="file"
+            accept="application/pdf,.pdf"
+            (change)="onResumeSelected($event)"
+            hidden
+          >
+        </label>
+
+        <button
+          class="primary"
+          [disabled]="resumeBusy || !resumeFile"
+          (click)="analyzeResume()"
+        >
+          {{ resumeBusy ? 'Analyzing…' : 'Analyze resume' }}
+        </button>
+      </div>
+
+      <div *ngIf="resumeResult" class="tool-card result-card">
+        <h3>Analysis results</h3>
+
+        <div
+          class="ai-message-content"
+          [innerHTML]="formatMessage(displayResult(resumeResult))"
+        ></div>
+
+        <button
+          class="secondary"
+          (click)="askNexora(displayResult(resumeResult))"
+        >
+          Discuss recommendations in chat
+        </button>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section *ngIf="mode === 'settings'" class="tool-view">
+      <div class="tool-heading">
+        <div class="tool-icon">⚙</div>
+        <h1>Settings</h1>
+        <p>Your account and workspace.</p>
+      </div>
+
+      <div class="tool-card">
+        <h3>Account</h3>
+
+        <p>
+          <span class="muted">Name</span><br>
+          {{ user.name || 'Not provided' }}
+        </p>
+
+        <p>
+          <span class="muted">Email</span><br>
+          {{ user.email || 'Not provided' }}
+        </p>
+
+        <button class="secondary" (click)="logout()">
+          Log out
+        </button>
+      </div>
+    </section>
+
+    <!-- Help Center -->
+    <section *ngIf="mode === 'help'" class="tool-view">
+      <div class="tool-heading">
+        <div class="tool-icon">?</div>
+        <h1>Help Center</h1>
+        <p>Get the most out of Nexora.</p>
+      </div>
+
+      <div class="tool-card">
+        <h3>Chat with your documents</h3>
+
+        <p>
+          Use the plus button in the chat composer to upload a PDF.
+          Wait for indexing to finish, then ask questions about the document.
+        </p>
+
+        <h3>Start a conversation</h3>
+
+        <p>
+          Type your question in the composer. Press Enter to send
+          or Shift+Enter to add a new line.
+        </p>
+
+        <h3>Resume Analyzer</h3>
+
+        <p>
+          Open Resume Analyzer from the sidebar and upload a PDF
+          resume to receive AI feedback.
+        </p>
+      </div>
+    </section>
+
+    <footer class="main-footer">
+      Built for focused work <span>·</span> Nexora AI Workbench
+    </footer>
+
+  </main>
+</div>
